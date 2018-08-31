@@ -1,80 +1,108 @@
 package pl.coderslab.app;
 
 import org.mindrot.BCrypt;
-import pl.coderslab.service.DbManager;
-import pl.coderslab.Models.Solution;
-import pl.coderslab.Models.User;
+import pl.coderslab.dao.SolutionDao;
+import pl.coderslab.dao.UserDao;
+import pl.coderslab.entity.Solution;
+import pl.coderslab.entity.User;
 
-import java.sql.Connection;
+import java.util.List;
 import java.util.Scanner;
 
 public class controllerStudent {
 
-    public static void main(Scanner scan) {
-        Connection conn = DbManager.getInstance().getConnection();
-        System.out.println("Welcome in Student panel ");
-        int id = -1;
+    public static void welcomeStudent(Scanner scanner) {
+        System.out.println("   #############   Programming School Student panel   #############   ");
+        while (true) {
+
+            // perform logging to get logged user ----------------------------------------------------------------------
+            // logowanie nie powinno sie odbywac w petli, po udanym ogowaniu powinna byc petla wykonujaca czynosc i wyswitlajaca rozwiazania
+            User loggedUser = logging(scanner);
+            if (loggedUser == null)
+                break;
+            int loggedUserId = loggedUser.getId();
+
+            // show list
+            showActualSolutionsOfLoggedUser(loggedUserId);
+
+            // get decision from user
+            System.out.println("Available options (type number to choose option): " +
+                    "\n\t '1' -update solution, 'q' -exit panel");
+            String decision = scanner.nextLine();
+            if (decision.equals("1")) {
+                Solution solutionToUpdate = getSolutionToUpdate(scanner);
+                updateSolution(scanner, solutionToUpdate);
+
+            } else if (decision.equals("q")) {
+                System.out.println("Exiting student panel");
+                break;
+            } else {
+                System.out.println("Wrong input. Try again.");
+            }
+        }
+    }
+
+    private static User logging(Scanner scanner) {
+        User loggedUser;
         while (true) {
             System.out.print("Type your userName or 'quit' -exit main menu. ");
-            String login = scan.nextLine(); //testuser
+            String login = scanner.nextLine();
             if (login.equals("quit")) {
-                break;
+                return null;
             }
             System.out.print("Type password to your account: ");
-            String candidate = scan.nextLine(); // password: test
-            User[] users = User.loadAllUsers(conn);
-            id = User.getIdFromUserName(users, login);
+            String candidate = scanner.nextLine();
+            List<User> users = UserDao.loadAllUsers();
+            int id = UserDao.getIdFromUserName(users, login);
             if (id == -1) {
                 System.out.println("User name not found. Try again");
             } else {
-                User loggedUser = User.loadUserById(conn, id);
+                loggedUser = UserDao.loadById(id);
                 if (BCrypt.checkpw(candidate, loggedUser.getPassword())) {// sprawdzenie czy haslo jest poprawne
                     System.out.println("Welcome " + loggedUser.getUsername());
-                    break;
+                    return loggedUser;
                 } else {
                     System.out.println("Wrong password");
                 }
             }
         }
-        // In my opinion task described in pdf is poor for user. Add - shows only solutions with
-        // description == null. Problem occurs in case of correcting/updating existing !=nul solution.
-        // I made this part of project in my own way.
+    }
+
+    private static void showActualSolutionsOfLoggedUser(int id) {
+        System.out.println("Your actual solutions in database <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
+        List<Solution> solutions = SolutionDao.loadAllByUserId(id);
+        for (Solution s : solutions) {
+            System.out.println(s);
+        }
+        System.out.println("\t\t\t\t\t\t\t\t\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> End of solutions");
+    }
+
+    private static Solution getSolutionToUpdate(Scanner scanner) {
+        Solution solutionToUpdate;
         while (true) {
-            System.out.println("Your actual solutions in database <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
-            Solution[] solutions = Solution.loadAllByUserId(conn, id);
-            for (Solution s : solutions) {
-                System.out.println(s);
-            }
-            System.out.println("\t\t\t\t\t\t\t\t\t\t>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> End of solutions"); // there should be a column in tab: solution named "rank' fulfilled by teacher
-            int solutionId = -1;
-            boolean exitFlag = false;
-            while (true) {
-                try {
-                    System.out.print("Type id of solution you want to update or 'quit' to exit panel: ");
-                    String decisionAfterSolutionShow = scan.nextLine();
-                    if (decisionAfterSolutionShow.equals("quit")) {
-                        exitFlag = true;
-                        break;
-                    }
-                    solutionId = Integer.parseInt(decisionAfterSolutionShow);
-                    break;
-                } catch (NumberFormatException e) {
-                    System.out.println("Wrong data. Try again.");
-                }
-            }
-            if (exitFlag)
-                break;
-            Solution solutionToUpdate = Solution.loadById(conn, solutionId);
-            System.out.print("Type new description of solution or 'quit' to exit panel: ");
-            String newDescription = scan.nextLine();
-            if (newDescription.equals("quit"))
-                break;
+            System.out.print("Type id of solution you want to update: ");
             try {
-                solutionToUpdate.setDescription(newDescription);
-                solutionToUpdate.saveToDB(conn);
+                int id = scanner.nextInt();
+                scanner.nextLine();
+                solutionToUpdate = SolutionDao.loadById(id);
+                if (solutionToUpdate != null) {
+                    return solutionToUpdate;
+                }
             } catch (Exception e) {
+                System.out.println("Wrong data. Try again.");
                 e.printStackTrace();
             }
+        }
+    }
+
+    private static void updateSolution(Scanner scanner, Solution solution) {
+        System.out.print("Type new description of solution or 'quit' to exit panel: ");
+        String newDescription = scanner.nextLine();
+        try {
+            solution.setDescription(newDescription);
+            SolutionDao.saveToDB(solution);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
